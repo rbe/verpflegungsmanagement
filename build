@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# /Users/rbe/project/vpm/build
+# 
+# Copyright (C) 2010 Informationssysteme Ralf Bensmann.
+# Alle Rechte vorbehalten. Nutzungslizenz siehe http://www.bensmann.com/license_de.html
+# All Rights Reserved. Use is subject to license terms, see http://www.bensmann.com/license_en.html
+# 
+# Created by: rbe
+#
+
+BASE=$(pwd)
+BIN=$BASE/bin
+CONF=$BASE/conf
+SRC=$BASE/src
+LIB=$BASE/lib
+CLASSES=$BASE/classes
+DIST=$BASE/dist
+
+if [ -z "$CLASSES" ]; then
+	echo "No classes directory!"
+	exit 1
+fi
+
+_make_cp() {
+	cp $GROOVY_HOME/embeddable/groovy-all-1.7.3.jar $LIB
+	for lib in $LIB/*.jar
+	do
+		CP="$CP:$lib"
+	done
+	echo $CP | cut -c 2-
+}
+
+_clean() {
+	echo "Cleaning up..."
+	mkdir -p $CLASSES
+	rm -rf $CLASSES/*
+	mkdir -p $DIST
+	rm -rf $DIST/*
+}
+
+_compile() {
+	echo "Compiling classes..."
+	cd $SRC
+	find . -type f -name \*.java -print0 | xargs -0 javac -d $CLASSES -cp "$(_make_cp)"
+	find . -type f -name \*.groovy -print0 | xargs -0 groovyc -d $CLASSES -cp "$CLASSES:$(_make_cp)"
+	mkdir -p com/bensmann/uka/vpm/resources
+	cp -R com/bensmann/uka/vpm/resources ../classes/com/bensmann/uka/vpm
+}
+
+_jar() {
+	_compile
+	echo "Creating jar"
+	rm $LIB/vpm.jar
+	cd $CLASSES
+	jar cf $LIB/vpm.jar *
+}
+
+_dist() {
+	_clean && _jar
+	if [ $? -eq 0 ]; then
+		echo "Creating distribution"
+		t=t$$/vpm
+		mkdir -p $t
+		cd $t
+		mkdir lib && cp -R $LIB/*.jar lib
+		mkdir conf && cp $CONF/vpm*.properties conf
+		cp $BIN/runme* .
+		cd ..
+		zip -rm $BASE/dist.zip vpm
+		cd ..
+		rm -rf $t
+	fi
+}
+
+case "$1" in
+	clean)
+		_clean
+	;;
+	compile)
+		_compile
+	;;
+	jar)
+		_jar
+	;;
+	dist)
+		_dist
+	;;
+	run)
+		$0 jar
+		cp="$(_make_cp lib)"
+		echo "Classpath: $cp"
+		java -cp $cp com.bensmann.uka.vpm.Main
+	;;
+esac
+
+exit 0
